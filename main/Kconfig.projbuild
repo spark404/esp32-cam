@@ -12,4 +12,9 @@ menu "EspCam Configuration"
         help
             The secret
 
+   config ESPCAM_AWS_IOT_ENDPOINT
+        string "Hostname of the IOT endpoint"
+        default "localhost"
+        help
+            Enter the hostname of the device data endpoint from your AWS IoT account
 endmenu
