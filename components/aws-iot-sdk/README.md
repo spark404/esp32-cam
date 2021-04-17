@@ -1,0 +1,1 @@
+This component is based on the repo https://github.com/espressif/esp-aws-iot
