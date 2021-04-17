@@ -20,6 +20,8 @@
 
 #define TAG "main"
 
+extern esp_err_t wifi_init();
+
 void app_main()
 {
     // Initialize NVS.
@@ -30,8 +32,9 @@ void app_main()
     }
     ESP_ERROR_CHECK( err );
 
-    ESP_LOGI(TAG, "Hello World");
+    // Initialize Event Loop
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-//    initialise_wifi();
-//    xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 9216, NULL, 5, NULL, 1);
+    // Initialize and connect WiFi
+    wifi_init();
 }

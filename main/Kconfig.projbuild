@@ -1,3 +1,15 @@
 menu "EspCam Configuration"
 
+    config ESPCAM_WIFI_SSID
+        string "Network ESSID"
+        default "ESSID"
+        help
+            The SSID of the WiFi network to connect to
+
+    config ESPCAM_WIFI_SECRET
+        string "Network WPA2 Key"
+        default "secret"
+        help
+            The secret
+
 endmenu
