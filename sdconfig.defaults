@@ -1,2 +1,0 @@
-# Required for the camera component
-CONFIG_ESP32_SPIRAM_SUPPORT=y
