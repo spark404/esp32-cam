@@ -11,12 +11,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    steps:
+    container: espressif/idf:v4.3
+    steps:      
       - uses: actions/checkout@v2
-
-      - name: ESP-IDF Container
-        uses: espressif/idf@v4.3
 
       # Runs a set of commands using the runners shell
       - name: Build
