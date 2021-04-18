@@ -1,3 +1,6 @@
 [submodule "components/aws-iot-sdk/aws-iot-device-sdk-embedded-C"]
 	path = components/aws-iot-sdk/aws-iot-device-sdk-embedded-C
 	url = https://github.com/aws/aws-iot-device-sdk-embedded-C.git
+[submodule "components/esp32-camera"]
+	path = components/esp32-camera
+	url = https://github.com/espressif/esp32-camera.git
