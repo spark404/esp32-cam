@@ -19,4 +19,5 @@ jobs:
       - name: Build
         run: |
           . $IDF_PATH/export.sh
+          which idf.py
           idf.py build
