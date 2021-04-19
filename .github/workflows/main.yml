@@ -18,9 +18,4 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: Build
         run: |
-          set
-          unset ZSH_VERSION
-          unset BASH_SOURCE
-          . $IDF_PATH/export.sh
-          which idf.py
-          idf.py build
+          $IDF_PATH/tools/idf.py build
