@@ -18,6 +18,9 @@ jobs:
     container: espressif/idf:release-v4.3
     steps:      
       - uses: actions/checkout@v2
+        with:
+          submodules: true
+          fetch-depth: 0
 
       # Runs a set of commands using the runners shell
       - name: Build
