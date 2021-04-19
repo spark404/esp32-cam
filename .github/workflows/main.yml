@@ -15,7 +15,6 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: espressif/idf:release-v4.3
     steps:      
       - uses: actions/checkout@v2
         with:
@@ -23,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       # Runs a set of commands using the runners shell
-      - name: Build
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py build
+      - name: ESP IDF Build
+        uses: docker://espressif/idf:release-v4.3
+        with:
+          args: idf.py build
