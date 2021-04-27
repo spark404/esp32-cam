@@ -44,31 +44,20 @@ static esp_err_t transport_init(TransportInterface_t *transportInterface) {
 
 }
 
-static esp_err_t transport_connect(TransportInterface_t *transportInterface) {
-    unsigned char *cabundle;
-    long cabundle_len;
-    ESP_ERROR_CHECK(esp32cam_readpem(CABUNDLE, &cabundle, &cabundle_len));
-
-    unsigned char *certificate;
-    long certificate_len;
-    ESP_ERROR_CHECK(esp32cam_readpem(DEVICE_CERTIFICATE, &certificate, &certificate_len));
-
-    unsigned char *privatekey;
-    long privatekey_len;
-    ESP_ERROR_CHECK(esp32cam_readpem(DEVICE_PRIVATEKEY, &privatekey, &privatekey_len));
+static esp_err_t transport_connect(TransportInterface_t *transportInterface, espcam_aws_iot_config_t *aws_iot_config, espcam_tls_config_t *tls_config) {
 
     esp_tls_cfg_t esp_tls_cfg = {
             .use_global_ca_store = false,
-            .cacert_buf = cabundle,
-            .cacert_bytes = cabundle_len,
-            .clientcert_buf = certificate,
-            .clientcert_bytes = certificate_len,
-            .clientkey_buf = privatekey,
-            .clientkey_bytes = privatekey_len
+            .cacert_buf = tls_config->cabundle.buffer,
+            .cacert_bytes = tls_config->cabundle.len,
+            .clientcert_buf = tls_config->device_certificate.buffer,
+            .clientcert_bytes = tls_config->device_certificate.len,
+            .clientkey_buf = tls_config->device_private_key.buffer,
+            .clientkey_bytes = tls_config->device_private_key.len
     };
 
     esp_tls_t *esp_tls = transportInterface->pNetworkContext->esp_tls;
-    int result = esp_tls_conn_new_sync(CONFIG_ESPCAM_AWS_IOT_ENDPOINT, strlen(CONFIG_ESPCAM_AWS_IOT_ENDPOINT), 8883, &esp_tls_cfg, esp_tls);
+    int result = esp_tls_conn_new_sync((char *)aws_iot_config->endpoint, strlen((char *)aws_iot_config->endpoint), 8883, &esp_tls_cfg, esp_tls);
     if (result != 1) {
         ESP_LOGE(TAG, "esp_tls failed to connect");
         return ESP_FAIL;
@@ -89,7 +78,7 @@ static esp_err_t transport_disconnect(TransportInterface_t *transportInterface) 
     return ESP_OK;
 }
 
-static esp_err_t mqtt_connect() {
+static esp_err_t mqtt_connect(espcam_aws_iot_config_t *aws_iot_config) {
     MQTTStatus_t mqttStatus;
     MQTTFixedBuffer_t networkBuffer;
 
@@ -109,8 +98,8 @@ static esp_err_t mqtt_connect() {
     }
 
     MQTTConnectInfo_t connectInfo = {
-            .pClientIdentifier = "esp_cam_01",
-            .clientIdentifierLength = 10,
+            .pClientIdentifier = (char *)aws_iot_config->device_name,
+            .clientIdentifierLength = strlen((char *)aws_iot_config->device_name),
             .cleanSession = true
     };
 
@@ -135,14 +124,14 @@ esp_err_t esp32cam_mqtt_init() {
     return ESP_OK;
 }
 
-esp_err_t esp32cam_mqtt_connect() {
-    esp_err_t err = transport_connect(&mqttTransportInterface);
+esp_err_t esp32cam_mqtt_connect(espcam_aws_iot_config_t *aws_iot_config, espcam_tls_config_t *tls_config) {
+    esp_err_t err = transport_connect(&mqttTransportInterface, aws_iot_config, tls_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp-tls transport failed to connect");
         return ESP_FAIL;
     }
 
-    err = mqtt_connect();
+    err = mqtt_connect(aws_iot_config);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "mqtt failed to connect");
         return ESP_FAIL;

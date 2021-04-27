@@ -43,7 +43,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t wifi_init() {
+esp_err_t esp32cam_wifi_init(espcam_wifi_config_t *espcam_wifi_config) {
     s_wifi_event_group = xEventGroupCreate();
 
     ESP_ERROR_CHECK(esp_netif_init());
@@ -63,8 +63,6 @@ esp_err_t wifi_init() {
 
     wifi_config_t wifi_config = {
             .sta = {
-                    .ssid = CONFIG_ESPCAM_WIFI_SSID,
-                    .password = CONFIG_ESPCAM_WIFI_SECRET,
                     .threshold.authmode = WIFI_AUTH_WPA2_PSK,
 
                     .pmf_cfg = {
@@ -73,6 +71,9 @@ esp_err_t wifi_init() {
                     },
             },
     };
+
+    memcpy(wifi_config.sta.ssid, espcam_wifi_config->essid, strlen((char *)espcam_wifi_config->essid));
+    memcpy(wifi_config.sta.password, espcam_wifi_config->essid_secret, strlen((char *)espcam_wifi_config->essid_secret));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
@@ -90,6 +91,7 @@ esp_err_t wifi_init() {
     xEventGroupClearBits(s_wifi_event_group, WIFI_STA_READY_BIT | WIFI_DISCONNECTED_BIT);
     ESP_ERROR_CHECK(result);
 
+    ESP_LOGI(TAG, "Attemting connection to %s", wifi_config.sta.ssid);
     esp_wifi_connect();
     ESP_LOGI(TAG, "wifi_init_connect finished, waiting for WIFI_CONNECTED_BIT event");
 

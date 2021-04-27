@@ -61,7 +61,10 @@ esp_err_t esp32cam_sdcard_unmount() {
     return err;
 }
 
-esp_err_t esp32cam_sdcard_readfile(const char *path, void **content, size_t *size) {
+esp_err_t esp32cam_sdcard_readfile(const char *filename, void **content, size_t *size) {
+    char path[128];
+    snprintf(path, 127, "/sdcard/%s", filename);
+
     FILE *file = fopen(path, "r");
     if (file == NULL) {
         ESP_LOGE(TAG, "Failed to read %s: %d", path, errno);
@@ -85,13 +88,15 @@ esp_err_t esp32cam_sdcard_readfile(const char *path, void **content, size_t *siz
     ESP_LOGD(TAG, "Reading file %s (%d bytes)", path, file_size);
     fseek(file, 0, 0); // Reset file to start
 
-    void *read_buffer = malloc(file_size);
+    void *read_buffer = malloc(file_size + 1);
     if (read_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to allocate %d bytes of memory to hold the file contents", file_size);
         fclose(file);
         return ESP_FAIL;
     }
     n = fread(read_buffer, 1, file_size, file);
+    *((char *)read_buffer + n) = 0x0; // Workaround; esp-tls want the certificates in PEM format NULL terminated
+
     if (n != file_size) {
         ESP_LOGE(TAG, "File size mismatch, calculated %d but read %d", file_size, n);
         fclose(file);
@@ -102,7 +107,7 @@ esp_err_t esp32cam_sdcard_readfile(const char *path, void **content, size_t *siz
 
     // Set outgoing variables
     *content = read_buffer;
-    *size = file_size;
+    *size = file_size + 1;
 
     return ESP_OK;
 }

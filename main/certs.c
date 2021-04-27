@@ -52,8 +52,5 @@ esp_err_t esp32cam_readpem(pem_type_t pem_type, unsigned char **buffer, long *le
 
 #ifdef CONFIG_ESPCAM_AWS_CERTS_SD
 
-esp_err_t esp32cam_readpem(pem_type_t pem_type, unsigned char **buffer, long *len) {
-    return ESP_FAIL;
-}
 
 #endif
