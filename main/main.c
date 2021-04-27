@@ -113,8 +113,8 @@ esp_err_t load_app_config() {
 
     ESP_ERROR_CHECK(esp32cam_sdcard_unmount());
 
-    ESP_LOGI(TAG, "Settings\n\tESSID: %s\n\tESSID secret: %s\n\tDevice ID: %s\n\tCA Bundle: %s bytes\n\tCertificate: %d bytes\n\tPrivate key: %d bytes",
-             app_config.wifi_config.essid, app_config.wifi_config.essid_secret, app_config.aws_iot_config.device_name, (char *)app_config.tls_config.cabundle.buffer,
+    ESP_LOGI(TAG, "Settings\n\tESSID: %s\n\tESSID secret: %s\n\tDevice ID: %s\n\tCA Bundle: %d bytes\n\tCertificate: %d bytes\n\tPrivate key: %d bytes",
+             app_config.wifi_config.essid, app_config.wifi_config.essid_secret, app_config.aws_iot_config.device_name, app_config.tls_config.cabundle.len,
              app_config.tls_config.device_certificate.len, app_config.tls_config.device_private_key.len);
 
     return ESP_OK;
