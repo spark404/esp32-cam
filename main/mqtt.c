@@ -10,20 +10,11 @@
 #include "core_mqtt_state.h"
 #include "port.h"
 
+#include "common.h"
+
 #define TAG "esp32cam_mqtt"
 static MQTTContext_t mqttContext;
 static TransportInterface_t mqttTransportInterface;
-
-extern const uint8_t server_root_cert_pem_start[] asm("_binary_aws_root_ca_pem_start");
-extern const uint8_t server_root_cert_pem_end[]   asm("_binary_aws_root_ca_pem_end");
-
-extern const uint8_t client_crt_pem_start[]       asm("_binary_certificate_pem_crt_start");
-extern const uint8_t client_crt_pem_end[]         asm("_binary_certificate_pem_crt_end");
-extern const uint16_t client_crt_pem_length       asm("certificate_pem_crt_length");
-
-extern const uint8_t client_key_pem_start[]       asm("_binary_private_pem_key_start");
-extern const uint8_t client_key_pem_end[]         asm("_binary_private_pem_key_end");
-extern const uint16_t client_key_pem_length       asm("private_pem_key_length");
 
 void mqtt_callback(MQTTContext_t *pMqttContext, MQTTPacketInfo_t *pMqttPacketInfo, MQTTDeserializedInfo_t *pMqttDeserializedInfo) {
     ESP_LOGD(TAG, "mqtt_callback");
@@ -54,14 +45,26 @@ static esp_err_t transport_init(TransportInterface_t *transportInterface) {
 }
 
 static esp_err_t transport_connect(TransportInterface_t *transportInterface) {
+    unsigned char *cabundle;
+    long cabundle_len;
+    ESP_ERROR_CHECK(esp32cam_readpem(CABUNDLE, &cabundle, &cabundle_len));
+
+    unsigned char *certificate;
+    long certificate_len;
+    ESP_ERROR_CHECK(esp32cam_readpem(DEVICE_CERTIFICATE, &certificate, &certificate_len));
+
+    unsigned char *privatekey;
+    long privatekey_len;
+    ESP_ERROR_CHECK(esp32cam_readpem(DEVICE_PRIVATEKEY, &privatekey, &privatekey_len));
+
     esp_tls_cfg_t esp_tls_cfg = {
             .use_global_ca_store = false,
-            .cacert_buf = (const unsigned char *) server_root_cert_pem_start,
-            .cacert_bytes = server_root_cert_pem_end - server_root_cert_pem_start,
-            .clientcert_buf = (const unsigned char *) client_crt_pem_start,
-            .clientcert_bytes = client_crt_pem_end - client_crt_pem_start,
-            .clientkey_buf = (const unsigned char *) client_key_pem_start,
-            .clientkey_bytes = client_key_pem_end - client_key_pem_start
+            .cacert_buf = cabundle,
+            .cacert_bytes = cabundle_len,
+            .clientcert_buf = certificate,
+            .clientcert_bytes = certificate_len,
+            .clientkey_buf = privatekey,
+            .clientkey_bytes = privatekey_len
     };
 
     esp_tls_t *esp_tls = transportInterface->pNetworkContext->esp_tls;

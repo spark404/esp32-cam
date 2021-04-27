@@ -14,6 +14,8 @@
 
 #include "sdkconfig.h"
 
+#include "common.h"
+
 #define TAG "main_wifi"
 
 #define WIFI_CONNECTED_BIT BIT0
@@ -89,6 +91,7 @@ esp_err_t wifi_init() {
     ESP_ERROR_CHECK(result);
 
     esp_wifi_connect();
+    ESP_LOGI(TAG, "wifi_init_connect finished, waiting for WIFI_CONNECTED_BIT event");
 
     bits = xEventGroupWaitBits(s_wifi_event_group,
                                            WIFI_CONNECTED_BIT | WIFI_DISCONNECTED_BIT,
@@ -98,5 +101,7 @@ esp_err_t wifi_init() {
 
     result = bits & WIFI_CONNECTED_BIT ? ESP_OK : ESP_FAIL;
     xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_DISCONNECTED_BIT);
+
+    ESP_LOGI(TAG, "wifi_init completed");
     return result;
 }

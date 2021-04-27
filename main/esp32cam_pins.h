@@ -27,6 +27,7 @@
 #define CAM_PIN_HREF    23
 #define CAM_PIN_PCLK    22
 
+// These are the defaults for SD slot 1
 #define SD_CLK          24
 #define SD_CMD          15
 #define SD_DATA0         2

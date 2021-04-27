@@ -8,6 +8,8 @@
 #include "esp_log.h"
 #include "esp_camera.h"
 
+#include "common.h"
+
 #define TAG "main_camera"
 
 static camera_config_t camera_config = {
@@ -50,7 +52,7 @@ esp_err_t esp32cam_camera_init() {
             ESP_LOGE(TAG, "Failed to set direction for CAM_PIN_PWDN");
             return err;
         }
-        err = gpio_set_level(CAM_PIN_PWDN, 0);
+        err = gpio_set_level(CAM_PIN_PWDN, 1);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to drive CAM_PIN_PWDN to LOW");
             return err;

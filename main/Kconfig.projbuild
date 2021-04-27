@@ -1,4 +1,4 @@
-menu "EspCam Configuration"
+menu "Esp32Cam Configuration"
 
     config ESPCAM_WIFI_SSID
         string "Network ESSID"
@@ -12,9 +12,25 @@ menu "EspCam Configuration"
         help
             The secret
 
-   config ESPCAM_AWS_IOT_ENDPOINT
+    config ESPCAM_AWS_IOT_ENDPOINT
         string "Hostname of the IOT endpoint"
         default "localhost"
         help
             Enter the hostname of the device data endpoint from your AWS IoT account
+
+    choice ESP_AWS_CERTS_SOURCE
+        prompt "Select certificate source"
+
+    config ESPCAM_AWS_CERTS_EMBEDDED
+        bool "Embed certificates in binary"
+        help
+            Embed the certificates in the certs/ directory in the firmware binary
+
+    config ESPCAM_AWS_CERTS_SD
+        bool "Read certificates from SD card"
+        help
+            Read the certificates from an SD card at runtime
+
+    endchoice
+
 endmenu
