@@ -2,6 +2,7 @@
 // Created by Hugo Trippaers on 18/04/2021.
 //
 
+#include <string.h>
 #include "esp32cam_pins.h"
 
 #include "driver/gpio.h"
@@ -37,7 +38,7 @@ static camera_config_t camera_config = {
         .ledc_channel = LEDC_CHANNEL_0,
 
         .pixel_format = PIXFORMAT_JPEG,//YUV422,GRAYSCALE,RGB565,JPEG
-        .frame_size = FRAMESIZE_UXGA,//QQVGA-QXGA Do not use sizes above QVGA when not JPEG
+        .frame_size = FRAMESIZE_SVGA,//QQVGA-QXGA Do not use sizes above QVGA when not JPEG
 
         .jpeg_quality = 12, //0-63 lower number means higher quality
         .fb_count = 1 //if more than one, i2s runs in continuous mode. Use only with JPEG
@@ -69,15 +70,21 @@ esp_err_t esp32cam_camera_init() {
     return ESP_OK;
 }
 
-esp_err_t camera_capture(){
+esp_err_t esp32cam_camera_capture(void *buffer, size_t *len) {
     //acquire a frame
     camera_fb_t * fb = esp_camera_fb_get();
     if (!fb) {
         ESP_LOGE(TAG, "Camera Capture Failed");
         return ESP_FAIL;
     }
-    //replace this with your own function
-    // process_image(fb->width, fb->height, fb->format, fb->buf, fb->len);
+
+    if (fb->len > 65536) {
+        ESP_LOGE(TAG, "Not enough space in buffer for frame, %d bytes required", fb->len);
+        esp_camera_fb_return(fb);
+        return ESP_FAIL;
+    }
+    memcpy(buffer, fb->buf, fb->len);
+    *len = fb->len;
 
     //return the frame buffer back to the driver for reuse
     esp_camera_fb_return(fb);

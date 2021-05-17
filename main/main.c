@@ -1,3 +1,4 @@
+#include <argz.h>
 
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 
@@ -7,6 +8,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <string.h>
+#include <esp_ota_ops.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -120,9 +122,22 @@ esp_err_t load_app_config() {
     return ESP_OK;
 }
 
+char image_buffer[65536];
+size_t image_size;
 
+_Noreturn
 void app_main()
 {
+    ESP_LOGI(TAG, "[APP] Startup..");
+    ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
+
+    const esp_partition_t *running_partition = esp_ota_get_running_partition();
+    ESP_LOGI(TAG, "[APP] Running from partition: %s", running_partition->label);
+
+    const esp_app_desc_t *appDescription = esp_ota_get_app_description();
+    ESP_LOGI(TAG, "[APP] Running: %s (version: %s)", appDescription->project_name, appDescription->version);
+
     // Initialize NVS.
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -149,7 +164,24 @@ void app_main()
     ESP_ERROR_CHECK(esp32cam_mqtt_connect(&app_config.aws_iot_config, &app_config.tls_config));
     ESP_LOGI(TAG, "MQTT connected OK");
 
-    vTaskDelay(10 * 1000 / portTICK_PERIOD_MS);
+    for(;;) {
+        err = esp32cam_camera_capture(&image_buffer, &image_size);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to capture image: %d", err);
+            goto done;
+        }
+
+        err = esp32cm_mqtt_publish(image_buffer, image_size);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to publish image to mqtt: %d", err);
+            goto done;
+        }
+
+        ESP_LOGI(TAG, "Published image (%d bytes)", image_size);
+
+        done:
+        vTaskDelay(pdMS_TO_TICKS(5 * 1000));
+    }
 
     ESP_ERROR_CHECK(esp32cam_mqtt_disconnect());
 

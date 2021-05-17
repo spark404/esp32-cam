@@ -45,10 +45,12 @@ typedef struct {
 esp_err_t esp32cam_wifi_init(espcam_wifi_config_t *wifi_config);
 
 esp_err_t esp32cam_camera_init();
+esp_err_t esp32cam_camera_capture(void *buffer, size_t *len);
 
 esp_err_t esp32cam_mqtt_init();
 esp_err_t esp32cam_mqtt_connect(espcam_aws_iot_config_t *aws_iot_config, espcam_tls_config_t *tls_config);
 esp_err_t esp32cam_mqtt_disconnect();
+esp_err_t esp32cm_mqtt_publish(void *buffer, size_t buffer_length);
 
 esp_err_t esp32cam_sdcard_mount();
 esp_err_t esp32cam_sdcard_unmount();
