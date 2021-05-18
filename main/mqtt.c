@@ -8,11 +8,17 @@
 // AWS-IOT-SDK Component
 #include "core_mqtt.h"
 #include "core_mqtt_state.h"
+#include "backoff_algorithm.h"
 #include "port.h"
 
 #include "common.h"
 
 #define TAG "esp32cam_mqtt"
+
+#define RETRY_MAX_ATTEMPTS            ( 5U )
+#define RETRY_MAX_BACKOFF_DELAY_MS    ( 5000U )
+#define RETRY_BACKOFF_BASE_MS         ( 500U )
+
 static MQTTContext_t mqttContext;
 static TransportInterface_t mqttTransportInterface;
 
@@ -56,8 +62,29 @@ static esp_err_t transport_connect(TransportInterface_t *transportInterface, esp
             .clientkey_bytes = tls_config->device_private_key.len
     };
 
+    BackoffAlgorithmStatus_t retryStatus = BackoffAlgorithmSuccess;
+    BackoffAlgorithmContext_t retryParams;
+    uint16_t nextRetryBackoff = 0;
+
+    BackoffAlgorithm_InitializeParams( &retryParams,
+                                       RETRY_BACKOFF_BASE_MS,
+                                       RETRY_MAX_BACKOFF_DELAY_MS,
+                                       RETRY_MAX_ATTEMPTS );
+
     esp_tls_t *esp_tls = transportInterface->pNetworkContext->esp_tls;
-    int result = esp_tls_conn_new_sync((char *)aws_iot_config->endpoint, strlen((char *)aws_iot_config->endpoint), 8883, &esp_tls_cfg, esp_tls);
+
+    int result = -1;
+    do {
+        result = esp_tls_conn_new_sync((char *) aws_iot_config->endpoint, strlen((char *) aws_iot_config->endpoint),
+                                           8883, &esp_tls_cfg, esp_tls);
+
+        if (result != 1) {
+            retryStatus = BackoffAlgorithm_GetNextBackoff(&retryParams, rand(), &nextRetryBackoff);
+
+            vTaskDelay(pdMS_TO_TICKS(nextRetryBackoff));
+        }
+    } while ((result != 1) && ( retryStatus != BackoffAlgorithmRetriesExhausted ));
+
     if (result != 1) {
         ESP_LOGE(TAG, "esp_tls failed to connect");
         return ESP_FAIL;
