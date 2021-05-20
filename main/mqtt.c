@@ -80,7 +80,7 @@ static esp_err_t transport_connect(TransportInterface_t *transportInterface, esp
 
         if (result != 1) {
             retryStatus = BackoffAlgorithm_GetNextBackoff(&retryParams, rand(), &nextRetryBackoff);
-
+            ESP_LOGW(TAG, "Retrying connection to broker in %d ms", nextRetryBackoff);
             vTaskDelay(pdMS_TO_TICKS(nextRetryBackoff));
         }
     } while ((result != 1) && ( retryStatus != BackoffAlgorithmRetriesExhausted ));

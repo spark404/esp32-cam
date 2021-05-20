@@ -25,6 +25,8 @@
 
 #include "sdkconfig.h"
 
+#include "esp-rtsp.h"
+#include "rtp-udp.h"
 #include "common.h"
 
 #define TAG "main"
@@ -125,6 +127,20 @@ esp_err_t load_app_config() {
 char image_buffer[65536];
 size_t image_size;
 
+#define MQTT_CONNECTED BIT0
+#define MQTT_DISCONNECTED BIT1
+EventGroupHandle_t s_mqtt_event_group;
+
+void mqtt_connection_task(void *pvParameters) {
+    esp_err_t err = esp32cam_mqtt_connect(&app_config.aws_iot_config, &app_config.tls_config);
+    if (err != ESP_OK) {
+        xEventGroupSetBits(s_mqtt_event_group, MQTT_DISCONNECTED);
+    }
+    xEventGroupSetBits(s_mqtt_event_group, MQTT_CONNECTED);
+    
+    vTaskDelete(NULL);
+}
+
 _Noreturn
 void app_main()
 {
@@ -153,16 +169,35 @@ void app_main()
 
     // Load configuration from the SD card
     ESP_ERROR_CHECK(load_app_config());
+    ESP_LOGI(TAG, "[POST load_app_config] Free memory: %d bytes", esp_get_free_heap_size());
 
     // Call our own init functions
     ESP_ERROR_CHECK(esp32cam_wifi_init(&app_config.wifi_config));
     ESP_ERROR_CHECK(esp32cam_camera_init());
-    ESP_ERROR_CHECK(esp32cam_mqtt_init());
+//    ESP_ERROR_CHECK(esp32cam_mqtt_init());
     ESP_LOGI(TAG, "System init OK");
 
+//    s_mqtt_event_group = xEventGroupCreate();
+//    xTaskCreate(mqtt_connection_task, "mqtt_connect_task", 4096, NULL, 5, NULL);
+//    EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
+//                                           MQTT_CONNECTED | MQTT_DISCONNECTED,
+//                                           pdFALSE,
+//                                           pdFALSE,
+//                                           portMAX_DELAY);
+//    esp_err_t result = bits & MQTT_CONNECTED ? ESP_OK : ESP_FAIL;
+//    ESP_ERROR_CHECK(result);
+//    ESP_LOGI(TAG, "MQTT connected OK");
 
-    ESP_ERROR_CHECK(esp32cam_mqtt_connect(&app_config.aws_iot_config, &app_config.tls_config));
-    ESP_LOGI(TAG, "MQTT connected OK");
+    ESP_ERROR_CHECK(esp_rtsp_server_start());
+    ESP_LOGI(TAG, "RTSP server started on port 554");
+
+
+    esp_rtp_session_t session = {
+            .dst_rtp_port = 10001,
+            .dst_rtcp_port = 10002,
+            .dst_ip = { 192, 168, 168, 109},
+    };
+    esp_rtp_init(&session);
 
     for(;;) {
         err = esp32cam_camera_capture(&image_buffer, &image_size);
@@ -171,13 +206,15 @@ void app_main()
             goto done;
         }
 
-        err = esp32cm_mqtt_publish(image_buffer, image_size);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to publish image to mqtt: %d", err);
-            goto done;
-        }
+        esp_rtp_send_jpeg(&session, image_buffer, image_size);
 
-        ESP_LOGI(TAG, "Published image (%d bytes)", image_size);
+//        err = esp32cm_mqtt_publish(image_buffer, image_size);
+//        if (err != ESP_OK) {
+//            ESP_LOGE(TAG, "Failed to publish image to mqtt: %d", err);
+//            goto done;
+//        }
+//
+//        ESP_LOGI(TAG, "Published image (%d bytes)", image_size);
 
         done:
         vTaskDelay(pdMS_TO_TICKS(5 * 1000));
