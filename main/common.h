@@ -2,7 +2,7 @@
 // Created by Hugo Trippaers on 20/04/2021.
 //
 
-#ifndef ESPCAM_COMMON_H
+#ifndef ESPCAM_ESP_RTSP_COMMON_H
 #define ESPCAM_COMMON_H
 
 // keys in settings.ini
@@ -57,4 +57,4 @@ esp_err_t esp32cam_sdcard_unmount();
 esp_err_t esp32cam_sdcard_readfile(const char *filename, void **content, size_t *size);
 
 
-#endif //ESPCAM_COMMON_H
+#endif //ESPCAM_ESP_RTSP_COMMON_H

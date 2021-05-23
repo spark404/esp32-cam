@@ -6,19 +6,23 @@
 #define ESPCAM_RTP_UDP_H
 
 typedef struct {
+    int initialized;
+
     uint16_t rtp_socket;
     uint16_t rtcp_socket;
 
     uint16_t src_rtp_port;
     uint16_t src_rtcp_port;
 
+    char dst_addr[128];
     uint16_t dst_rtp_port;
     uint16_t dst_rtcp_port;
-    uint8_t dst_ip[4];
 
     uint32_t timestamp;
     uint32_t sequence_number;
 } esp_rtp_session_t;
+
+typedef void* esp_rtp_session_handle_t;
 
 typedef struct {
     uint8_t payload_type;
@@ -38,6 +42,17 @@ typedef struct {
 } esp_rtp_jpeg_header_t;
 
 typedef struct {
+    char *jpeg;
+    size_t jpeg_length;
+    char *jpeg_data_start;
+    size_t jpeg_data_length;
+    char *quant_table_0;
+    char *quant_table_1;
+} esp_rtsp_jpeg_data_t;
+
+esp_err_t esp_rtsp_jpeg_decode(char *buffer, size_t length, esp_rtsp_jpeg_data_t *rtsp_jpeg_data);
+
+typedef struct {
     uint8_t mbz;
     uint8_t precision;
     uint16_t length;
@@ -51,8 +66,10 @@ typedef struct {
     .length = 128             \
 }
 
-esp_err_t esp_rtp_init(esp_rtp_session_t *rtp_session);
-esp_err_t esp_rtp_teardown(esp_rtp_session_t *rtp_session);
-esp_err_t esp_rtp_send_jpeg(esp_rtp_session_t *rtp_session, char *jpeg, int jpeg_length);
+esp_err_t esp_rtp_init(esp_rtp_session_handle_t *rtp_session, int dst_rtp_port, int dst_rtcp_port, char *dst_addr_string);
+esp_err_t esp_rtp_teardown(esp_rtp_session_handle_t rtp_session);
+esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *jpeg, size_t jpeg_length);
+int esp_rtp_get_src_rtp_port(esp_rtp_session_handle_t rtp_session);
+int esp_rtp_get_src_rtcp_port(esp_rtp_session_handle_t rtp_session);
 
 #endif //ESPCAM_RTP_UDP_H

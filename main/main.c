@@ -26,7 +26,6 @@
 #include "sdkconfig.h"
 
 #include "esp-rtsp.h"
-#include "rtp-udp.h"
 #include "common.h"
 
 #define TAG "main"
@@ -188,26 +187,17 @@ void app_main()
 //    ESP_ERROR_CHECK(result);
 //    ESP_LOGI(TAG, "MQTT connected OK");
 
-    ESP_ERROR_CHECK(esp_rtsp_server_start());
+    esp_rtsp_server_handle_t rtsp_server_handle;
+    ESP_ERROR_CHECK(esp_rtsp_server_start(&rtsp_server_handle));
     ESP_LOGI(TAG, "RTSP server started on port 554");
 
-
-    esp_rtp_session_t session = {
-            .dst_rtp_port = 10001,
-            .dst_rtcp_port = 10002,
-            .dst_ip = { 192, 168, 168, 109},
-    };
-    esp_rtp_init(&session);
-
     for(;;) {
-        err = esp32cam_camera_capture(&image_buffer, &image_size);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to capture image: %d", err);
-            goto done;
-        }
-
-        esp_rtp_send_jpeg(&session, image_buffer, image_size);
-
+//        err = esp32cam_camera_capture(&image_buffer, &image_size);
+//        if (err != ESP_OK) {
+//            ESP_LOGE(TAG, "Failed to capture image: %d", err);
+//            goto done;
+//        }
+//
 //        err = esp32cm_mqtt_publish(image_buffer, image_size);
 //        if (err != ESP_OK) {
 //            ESP_LOGE(TAG, "Failed to publish image to mqtt: %d", err);
@@ -215,11 +205,15 @@ void app_main()
 //        }
 //
 //        ESP_LOGI(TAG, "Published image (%d bytes)", image_size);
+        char buffer[512];
+        vTaskGetRunTimeStats(buffer);
+        ESP_LOGD(TAG, "%s", buffer);
 
-        done:
+        ESP_LOGD(TAG, "Heap free: %d", esp_get_free_heap_size());
+
         vTaskDelay(pdMS_TO_TICKS(5 * 1000));
     }
 
+    ESP_ERROR_CHECK(esp_rtsp_server_stop(rtsp_server_handle));
     ESP_ERROR_CHECK(esp32cam_mqtt_disconnect());
-
 }

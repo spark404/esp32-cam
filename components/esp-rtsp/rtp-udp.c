@@ -59,7 +59,7 @@ static int serialize_header(esp_rtp_header_t header, uint8_t *buffer, size_t len
     buffer[0] = 0x80; // Version 2, no padding, no extensions, no csrc
     buffer[1] = header.payload_type;
     if (header.marker) {
-        buffer[1] |= 1 << 8;
+        buffer[1] |= 1 << 7;
     }
 
     uint16_t *sequence_number = (uint16_t *) &buffer[2];
@@ -71,7 +71,7 @@ static int serialize_header(esp_rtp_header_t header, uint8_t *buffer, size_t len
     uint32_t *ssrc = (uint32_t *) &buffer[8];
     *ssrc = PP_HTONL(header.ssrc);
 
-    return  12;
+    return 12;
 }
 
 static int serialize_jpeg_header(esp_rtp_jpeg_header_t header, uint8_t *buffer, size_t length) {
@@ -112,13 +112,15 @@ static int serialize_quant_tables(esp_rtp_quant_t quant, uint8_t *buffer, size_t
     return quant.length + 4;
 }
 
-esp_err_t esp_rtp_init(esp_rtp_session_t *rtp_session) {
-    if (rtp_session->dst_rtp_port == 0 ||
-        rtp_session->dst_rtcp_port == 0 ||
-        rtp_session->dst_ip[0] == 0) {
-        ESP_LOGE(TAG, "Client details incorrect");
-        return ESP_ERR_INVALID_ARG;
+esp_err_t esp_rtp_init(esp_rtp_session_handle_t *rtp_session, int dst_rtp_port, int dst_rtcp_port, char *dst_addr_string) {
+    esp_rtp_session_t *session = calloc(1, sizeof(esp_rtp_session_t));
+    if (!session) {
+        return ESP_ERR_NO_MEM;
     }
+    memset(session, 0, sizeof(esp_rtp_session_t));
+
+    session->dst_rtp_port = dst_rtp_port;
+    session->dst_rtcp_port = dst_rtcp_port;
 
     // Find two consecutive ports in the range 9001 - 65534
     for (u_short port = 9001; port < 0xFFFE; port += 2) {
@@ -133,44 +135,68 @@ esp_err_t esp_rtp_init(esp_rtp_session_t *rtp_session) {
             continue;
         }
 
-        rtp_session->rtp_socket = rtp_sock;
-        rtp_session->rtcp_socket = rtcp_sock;
+        session->rtp_socket = rtp_sock;
+        session->src_rtp_port = port;
+
+        session->rtcp_socket = rtcp_sock;
+        session->src_rtcp_port = port + 1;
         break;
     }
 
-    if (rtp_session->rtp_socket <= 0) {
+    if (session->rtp_socket <= 0) {
         ESP_LOGE(TAG, "Unable to prepare UDP sockets for RTP/RTCP");
         return ESP_FAIL;
     }
 
-    rtp_session->timestamp = esp_random();
-    rtp_session->sequence_number = 0;
+    memcpy(session->dst_addr, dst_addr_string, sizeof(session->dst_addr));
+
+    session->timestamp = esp_random() >> 16;
+    session->sequence_number = 0;
+    session->initialized = true;
+
+    *rtp_session = session;
+    return ESP_OK;
+}
+
+esp_err_t esp_rtp_teardown(esp_rtp_session_handle_t rtp_session) {
+    if (!rtp_session) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_rtp_session_t *session = rtp_session;
+
+    if (!session->initialized) {
+        return ESP_FAIL;
+    }
+
+    shutdown(session->rtp_socket, 0);
+    close (session->rtp_socket);
+
+    shutdown(session->rtcp_socket, 0);
+    close(session->rtcp_socket);
 
     return ESP_OK;
 }
 
-esp_err_t esp_rtp_teardown(esp_rtp_session_t *rtp_session) {
-    shutdown(rtp_session->rtp_socket, 0);
-    close(rtp_session->rtp_socket);
+esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *jpeg, size_t jpeg_length) {
+    if (!rtp_session) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    esp_rtp_session_t *session = rtp_session;
 
-    shutdown(rtp_session->rtcp_socket, 0);
-    close(rtp_session->rtcp_socket);
-
-    return ESP_OK;
-}
-
-esp_err_t esp_rtp_send_jpeg(esp_rtp_session_t *rtp_session, char *jpeg, int jpeg_length) {
+    if (!session->initialized) {
+        return ESP_FAIL;
+    }
 
     esp_rtsp_jpeg_data_t jpeg_data;
 
-    if (esp_rtsp_jpeg_decode(jpeg, jpeg_length, &jpeg_data) != ESP_OK) {
+    if (esp_rtsp_jpeg_decode((char *)jpeg, jpeg_length, &jpeg_data) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to parse jpeg data");
         return ESP_FAIL;
     }
 
     esp_rtp_jpeg_header_t rtp_jpeg_header = {
-            .height = 800,             // TODO get this from camera or image
-            .width = 600,              // TODO get this from camera or image
+            .height = 600,             // TODO get this from camera or image
+            .width = 800,              // TODO get this from camera or image
             .q = 12,                   // TODO get this from camera or image
             .type = TYPE_BASELINE_DCT_SEQUENTIAL,
             .type_specific = TYPE_0_SPECIFIC_PROGRESSIVE,
@@ -180,31 +206,31 @@ esp_err_t esp_rtp_send_jpeg(esp_rtp_session_t *rtp_session, char *jpeg, int jpeg
     esp_rtp_header_t rtp_header = {
             .payload_type = RTP_PAYLOAD_JPEG,
             .ssrc = 12348765,         // TODO make this random and unique
-            .timestamp = rtp_session->timestamp++, // Increase timestamp per frame
+            .timestamp = session->timestamp++, // Increase timestamp per frame
             .sequence_number = 0,
             .marker = 0
     };
 
-    while (rtp_jpeg_header.fragment_offset < jpeg_data.jpeg_length) {
+    while (rtp_jpeg_header.fragment_offset < jpeg_data.jpeg_data_length) {
         static uint8_t payload[MAX_PAYLOAD_SIZE];
         uint8_t *offset = payload;
         size_t payload_remaining = MAX_PAYLOAD_SIZE;
 
-        rtp_header.sequence_number = rtp_session->sequence_number++; // Increase sequence per packet
+        rtp_header.sequence_number = session->sequence_number++; // Increase sequence per packet
 
         int include_quant = jpeg_data.quant_table_0 && jpeg_data.quant_table_1 && rtp_jpeg_header.fragment_offset == 0;
         if (include_quant) {
-            rtp_jpeg_header.q |= 1 << 8;
+            rtp_jpeg_header.q |= 1 << 7;
         } else {
             rtp_jpeg_header.q &= 0b0111111;
         }
 
-        int last_packet = jpeg_data.jpeg_length - rtp_jpeg_header.fragment_offset < payload_remaining;
+        int last_packet = (jpeg_data.jpeg_data_length - rtp_jpeg_header.fragment_offset) < payload_remaining;
         rtp_header.marker = last_packet;
 
-        ESP_LOGD(TAG, "Serializing RTP/AVP packet, offset=%d, quant=%d, last=%d, timestamp=%ud, sequence=%ud",
-                 rtp_jpeg_header.fragment_offset, include_quant, last_packet,
-                 rtp_session->timestamp, rtp_session->sequence_number);
+//        ESP_LOGD(TAG, "Serializing RTP/AVP packet, offset=%d, quant=%d, last=%d, timestamp=%ud, sequence=%ud",
+//                 rtp_jpeg_header.fragment_offset, include_quant, last_packet,
+//                 session->timestamp, session->sequence_number);
 
         int n = serialize_header(rtp_header, offset, payload_remaining);
         if (n < 0) {
@@ -234,24 +260,23 @@ esp_err_t esp_rtp_send_jpeg(esp_rtp_session_t *rtp_session, char *jpeg, int jpeg
         }
 
         if (last_packet) {
-            size_t remaining_bytes =  jpeg_data.jpeg_length - rtp_jpeg_header.fragment_offset;
-            memcpy(offset, jpeg_data.jpeg + rtp_jpeg_header.fragment_offset, remaining_bytes);
+            size_t remaining_bytes =  jpeg_data.jpeg_data_length - rtp_jpeg_header.fragment_offset;
+            memcpy(offset, jpeg_data.jpeg_data_start + rtp_jpeg_header.fragment_offset, remaining_bytes);
             payload_remaining -= remaining_bytes;
             rtp_jpeg_header.fragment_offset += remaining_bytes;
         } else {
-            memcpy(offset, jpeg_data.jpeg + rtp_jpeg_header.fragment_offset, payload_remaining);
+            memcpy(offset, jpeg_data.jpeg_data_start + rtp_jpeg_header.fragment_offset, payload_remaining);
             rtp_jpeg_header.fragment_offset += payload_remaining;
             payload_remaining = 0;
         }
 
-        ESP_LOG_BUFFER_HEX(TAG, payload, 32);
         const struct sockaddr_in client = {
                 .sin_family = AF_INET,
-                .sin_addr.s_addr = inet_addr("192.168.168.109"),
-                .sin_port = htons(rtp_session->dst_rtp_port)
+                .sin_addr.s_addr = inet_addr(session->dst_addr),
+                .sin_port = htons(session->dst_rtp_port)
         };
 
-        ssize_t sent = sendto(rtp_session->rtp_socket, payload, MAX_PAYLOAD_SIZE - payload_remaining, 0,
+        ssize_t sent = sendto(session->rtp_socket, payload, MAX_PAYLOAD_SIZE - payload_remaining, 0,
                               (const struct sockaddr *) &client, sizeof(client));
         if (sent < 0) {
             ESP_LOGE(TAG, "Failed to sent RTP package: %d", errno);
@@ -260,4 +285,30 @@ esp_err_t esp_rtp_send_jpeg(esp_rtp_session_t *rtp_session, char *jpeg, int jpeg
     }
 
     return ESP_OK;
+}
+
+int esp_rtp_get_src_rtp_port(esp_rtp_session_handle_t rtp_session) {
+    if (!rtp_session) {
+        return -1;
+    }
+    esp_rtp_session_t *session = rtp_session;
+
+    if (!session->initialized) {
+        return ESP_FAIL;
+    }
+
+    return session->src_rtp_port;
+}
+
+int esp_rtp_get_src_rtcp_port(esp_rtp_session_handle_t rtp_session) {
+    if (!rtp_session) {
+        return -1;
+    }
+    esp_rtp_session_t *session = rtp_session;
+
+    if (!session->initialized) {
+        return ESP_FAIL;
+    }
+
+    return session->src_rtcp_port;
 }

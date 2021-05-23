@@ -11,7 +11,7 @@
 #include <esp_log.h>
 #include <esp_err.h>
 
-#include "esp-rtsp.h"
+#include "rtp-udp.h"
 
 #define TAG "esp-rtsp-jpeg"
 
@@ -62,7 +62,7 @@ esp_err_t esp_rtsp_jpeg_decode(char *buffer, size_t length, esp_rtsp_jpeg_data_t
         ESP_LOGE(TAG, "Failed to find marker 0x%02x", JPEG_SOS);
         return ESP_FAIL;
     }
-    rtsp_jpeg_data->jpeg_data_start = marker;
+    rtsp_jpeg_data->jpeg_data_start = marker + block_length(marker, remaining); // Don't include the SOS header
 
     remaining = length - (marker-buffer);
     next = marker + block_length(marker, remaining);
@@ -70,13 +70,13 @@ esp_err_t esp_rtsp_jpeg_decode(char *buffer, size_t length, esp_rtsp_jpeg_data_t
         ESP_LOGE(TAG, "Failed to find marker 0x%02x", JPEG_EOI);
         return ESP_FAIL;
     }
-    rtsp_jpeg_data->jpeg_data_length = marker - rtsp_jpeg_data->jpeg_data_start;
+    rtsp_jpeg_data->jpeg_data_length = marker - rtsp_jpeg_data->jpeg_data_start + 2;
 
-    ESP_LOGD(TAG, "JPEG: Q1 : %d, Q2 : %d, SOS: %d, LEN: %d",
-             rtsp_jpeg_data->quant_table_0 - buffer,
-             rtsp_jpeg_data->quant_table_1 - buffer,
-             rtsp_jpeg_data->jpeg_data_start - buffer,
-             rtsp_jpeg_data->jpeg_data_length);
+//    ESP_LOGD(TAG, "JPEG: Q1 : %d, Q2 : %d, SOS: %d, LEN: %d",
+//             rtsp_jpeg_data->quant_table_0 - buffer,
+//             rtsp_jpeg_data->quant_table_1 - buffer,
+//             rtsp_jpeg_data->jpeg_data_start - buffer,
+//             rtsp_jpeg_data->jpeg_data_length);
 
     return ESP_OK;
 }
