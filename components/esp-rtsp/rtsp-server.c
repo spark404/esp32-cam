@@ -1,8 +1,6 @@
-#include <alloca.h>
 //
 // Created by Hugo Trippaers on 17/05/2021.
 //
-#include <string.h>
 #include <sys/param.h>
 #include "esp_system.h"
 #include "esp_log.h"

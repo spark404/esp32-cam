@@ -42,8 +42,6 @@ typedef struct {
 } esp_rtp_jpeg_header_t;
 
 typedef struct {
-    char *jpeg;
-    size_t jpeg_length;
     char *jpeg_data_start;
     size_t jpeg_data_length;
     char *quant_table_0;
@@ -68,7 +66,7 @@ typedef struct {
 
 esp_err_t esp_rtp_init(esp_rtp_session_handle_t *rtp_session, int dst_rtp_port, int dst_rtcp_port, char *dst_addr_string);
 esp_err_t esp_rtp_teardown(esp_rtp_session_handle_t rtp_session);
-esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *jpeg, size_t jpeg_length);
+esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *frame, size_t frame_length);
 int esp_rtp_get_src_rtp_port(esp_rtp_session_handle_t rtp_session);
 int esp_rtp_get_src_rtcp_port(esp_rtp_session_handle_t rtp_session);
 

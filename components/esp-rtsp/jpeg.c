@@ -26,9 +26,6 @@ static int block_length(const char *blockptr, size_t len);
 esp_err_t esp_rtsp_jpeg_decode(char *buffer, size_t length, esp_rtsp_jpeg_data_t *rtsp_jpeg_data) {
     assert(rtsp_jpeg_data != NULL);
 
-    rtsp_jpeg_data->jpeg = buffer;
-    rtsp_jpeg_data->jpeg_length = length;
-
     if (length < 4) {
         ESP_LOGE(TAG, "Invalid length: %d", length);
         return ESP_FAIL;

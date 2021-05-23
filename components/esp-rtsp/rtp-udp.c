@@ -177,7 +177,7 @@ esp_err_t esp_rtp_teardown(esp_rtp_session_handle_t rtp_session) {
     return ESP_OK;
 }
 
-esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *jpeg, size_t jpeg_length) {
+esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *frame, size_t frame_length) {
     if (!rtp_session) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -189,7 +189,7 @@ esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *jpeg,
 
     esp_rtsp_jpeg_data_t jpeg_data;
 
-    if (esp_rtsp_jpeg_decode((char *)jpeg, jpeg_length, &jpeg_data) != ESP_OK) {
+    if (esp_rtsp_jpeg_decode((char *)frame, frame_length, &jpeg_data) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to parse jpeg data");
         return ESP_FAIL;
     }
