@@ -2,7 +2,6 @@
 // Created by Hugo Trippaers on 17/05/2021.
 //
 #include <sys/param.h>
-#include "esp_system.h"
 #include "esp_log.h"
 
 #include "lwip/err.h"
@@ -34,6 +33,8 @@ typedef struct {
 
 esp_rtsp_server_connection_t connections[MAX_CLIENTS];
 
+static int esp_rtsp_handle_error(esp_rtsp_server_connection_t *, int);
+
 static void handle_options(esp_rtsp_server_connection_t *connection, rtsp_req_t *request) {
     char buffer[2048];
     size_t msgsize = snprintf(buffer, 2048,
@@ -41,7 +42,6 @@ static void handle_options(esp_rtsp_server_connection_t *connection, rtsp_req_t 
                               "cSeq: %d\r\n"
                               "Public: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE\r\n"
                               "Server: ESP32 Cam Server\r\n"
-                              "Date: Wed, 19 May 2021 17:14:24 GMT\r\n"
                               "\r\n",
                               request->cseq);
     size_t sent = send(connection->socket, buffer, msgsize, 0);
@@ -95,7 +95,6 @@ static void handle_describe(esp_rtsp_server_connection_t *connection, rtsp_req_t
                               "Content-Type: application/sdp\r\n"
                               "Content-Base: %s\r\n"
                               "Server: ESP32 Cam Server\r\n"
-                              "Date: Wed, 19 May 2021 17:14:24 GMT\r\n"
                               "Content-Length: %d\r\n"
                               "\r\n",
                               request->cseq,
@@ -119,7 +118,7 @@ static void handle_describe(esp_rtsp_server_connection_t *connection, rtsp_req_t
 
 void temporary_player_task(void *pvParameters) {
     if (!pvParameters) {
-        ESP_LOGE("player", "Invalid arguments");
+        ESP_LOGE("rtp_server", "Invalid arguments");
         vTaskDelete(NULL);
         return;
     }
@@ -156,7 +155,7 @@ void temporary_player_task(void *pvParameters) {
 }
 
 static void handle_play(esp_rtsp_server_connection_t *connection, rtsp_req_t *request) {
-    BaseType_t result = xTaskCreate(temporary_player_task, "rtp_server", 32*1024, connection->rtp_session, 6, &connection->rtp_player_task);
+    BaseType_t result = xTaskCreate(temporary_player_task, "rtp_server", 2024, connection->rtp_session, 6, &connection->rtp_player_task);
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create rtp server task: %d", result);
         send(connection->socket, "RTSP/1.0 500 Internal Server Error\r\n\r\n", 38, 0);
@@ -169,7 +168,6 @@ static void handle_play(esp_rtsp_server_connection_t *connection, rtsp_req_t *re
                               "cSeq: %d\r\n"
                               "Session: %d\r\n"
                               "Server: ESP32 Cam Server\r\n"
-                              "Date: Wed, 19 May 2021 17:14:24 GMT\r\n"
                               "Range: npt=0.000-\r\n"
                               "\r\n",
                               request->cseq,
@@ -183,15 +181,26 @@ static void handle_play(esp_rtsp_server_connection_t *connection, rtsp_req_t *re
 }
 
 static void handle_teardown(esp_rtsp_server_connection_t *connection, rtsp_req_t *request) {
-    vTaskDelete(connection->rtp_player_task);
-    esp_rtp_teardown(connection->rtp_session);
+    if (!connection->connection_active) {
+        esp_rtsp_handle_error(connection, 400);
+        return;
+    }
+
+    if (connection->rtp_player_task) {
+        vTaskDelete(connection->rtp_player_task);
+        connection->rtp_player_task = NULL;
+    }
+
+    if (connection->rtp_session) {
+        esp_rtp_teardown(connection->rtp_session);
+        connection->rtp_session = NULL;
+    }
 
     static char buffer[2048];
     size_t msgsize = snprintf(buffer, 2048,
                               "RTSP/1.0 200 OK\r\n"
                               "cSeq: %d\r\n"
                               "Server: ESP32 Cam Server\r\n"
-                              "Date: Wed, 19 May 2021 17:14:24 GMT\r\n"
                               "\r\n",
                               request->cseq);
 
@@ -200,6 +209,29 @@ static void handle_teardown(esp_rtsp_server_connection_t *connection, rtsp_req_t
     if (sent != msgsize) {
         ESP_LOGW(TAG, "Mismatch between msgsize and sent bytes: %d vs %d", msgsize, sent);
     }
+}
+
+static int rtsp_server_connection_close(esp_rtsp_server_connection_t *connection) {
+    ESP_LOGD(TAG, "Closing connection with %s", connection->client_addr_string);
+    if (!connection->connection_active) {
+        return 0;
+    }
+
+    if (connection->rtp_player_task) {
+        vTaskDelete(connection->rtp_player_task);
+    }
+
+    if (connection->rtp_session) {
+        esp_rtp_teardown(connection->rtp_session);
+    }
+
+    connection->connection_active = false;
+    shutdown(connection->socket, 0);
+    close(connection->socket);
+
+    memset(connection, 0, sizeof(esp_rtsp_server_connection_t));
+
+    return 0;
 }
 
 static int esp_rtsp_server_read_block(esp_rtsp_server_connection_t *connection) {
@@ -224,7 +256,6 @@ static int esp_rtsp_server_read_block(esp_rtsp_server_connection_t *connection) 
     if (n == 0) {
         return n;
     }
-
 
     buffer[n] = 0x0;
 
@@ -270,6 +301,19 @@ static int esp_rtsp_handle_request(esp_rtsp_server_connection_t *connection, rts
     return 0;
 }
 
+static int esp_rtsp_handle_error(esp_rtsp_server_connection_t *connection, int error) {
+    if (!connection->connection_active) {
+    return -1;
+    }
+
+    int sock = connection->socket;
+
+    ESP_LOGI(TAG, "RTSP >: %s", "RTSP/1.0 400 Bad Request\r\n\r\n");
+    send(sock, "RTSP/1.0 400 Bad Request\r\n\r\n", 28, 0);
+
+    return 0;
+}
+
 static int esp_rtsp_handle_read(esp_rtsp_server_connection_t *connection) {
     if (!connection) {
         ESP_LOGW(TAG, "Read on socket %d, but no registered connection", connection->socket);
@@ -284,24 +328,27 @@ static int esp_rtsp_handle_read(esp_rtsp_server_connection_t *connection) {
     ssize_t n = esp_rtsp_server_read_block(connection);
     if (n < 0) {
         ESP_LOGE(TAG, "Read failed");
-        connection->connection_active = false;
-        shutdown(connection->socket, 0);
-        close(connection->socket);
+        rtsp_server_connection_close(connection);
         return -1;
     }
 
     if (n == 0) {
-        ESP_LOGD(TAG, "Closing connection");
-        connection->connection_active = false;
-        shutdown(connection->socket, 0);
-        close(connection->socket);
+        rtsp_server_connection_close(connection);
+        return 0;
+    }
+
+    int error = parser_get_error(connection->parser);
+    if (error) {
+        esp_rtsp_handle_error(connection, error);
+        ESP_LOGD(TAG, "Closing connection after bad request error");
+        rtsp_server_connection_close(connection);
         return 0;
     }
 
     if (parser_is_complete(connection->parser)) {
         rtsp_req_t *request = parser_get_request(connection->parser);
         parser_free(connection->parser);
-        parser_init(&connection->parser);
+        rtsp_parser_init(&connection->parser);
 
         if (esp_rtsp_handle_request(connection, request) < 0) {
             ESP_LOGW(TAG, "Failed to handle request %d", request->request_type);
@@ -332,8 +379,6 @@ static int esp_rtsp_create_listening_socket(int port) {
         ESP_LOGE(TAG, "Unable to set socket SO_REUSEADDR: errno %d", errno);
         goto CLEAN_UP;
     }
-
-    ESP_LOGI(TAG, "Socket created");
 
     int err = bind(listen_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
     if (err != 0) {
@@ -376,6 +421,7 @@ static esp_err_t rtsp_server_accept(int listen_sock) {
             // claim this connection
             connections[i].connection_active = true;
             connection = &connections[i];
+            break;
         }
     }
 
@@ -413,7 +459,7 @@ static esp_err_t rtsp_server_accept(int listen_sock) {
     ESP_LOGI(TAG, "Socket accepted ip address: %s", connection->client_addr_string);
 
     connection->socket = sock;
-    if (parser_init(&connection->parser) < 0) {
+    if (rtsp_parser_init(&connection->parser) < 0) {
         ESP_LOGW(TAG, "Failed to create parser state for connection");
         shutdown(sock, 0);
         close(sock);
@@ -445,12 +491,8 @@ esp_err_t rtsp_server_main() {
             }
         }
 
-        struct timeval to;
-        to.tv_sec = 1;
-        to.tv_usec = 0;
-
         ESP_LOGD(TAG, "Entering select");
-        int n = lwip_select(sock_max + 1, &read_set, NULL, NULL, NULL);
+        int n = select(sock_max + 1, &read_set, NULL, NULL, NULL);
         if (n < 0) {
             if (errno == EINTR) {
                 ESP_LOGW(TAG, "select interrupted");

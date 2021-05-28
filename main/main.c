@@ -144,7 +144,7 @@ _Noreturn
 void app_main()
 {
     ESP_LOGI(TAG, "[APP] Startup..");
-    ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "[APP] Free heap memory: %d bytes (%d internal)", esp_get_free_heap_size(), esp_get_free_internal_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
 
     const esp_partition_t *running_partition = esp_ota_get_running_partition();
@@ -167,50 +167,46 @@ void app_main()
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     // Load configuration from the SD card
+    ESP_LOGD(TAG, "[PRE load_app_config] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(load_app_config());
-    ESP_LOGI(TAG, "[POST load_app_config] Free memory: %d bytes", esp_get_free_heap_size());
+    ESP_LOGD(TAG, "[POST load_app_config] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
 
     // Call our own init functions
+    ESP_LOGD(TAG, "[PRE esp32cam_wifi_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(esp32cam_wifi_init(&app_config.wifi_config));
+    ESP_LOGD(TAG, "[POST esp32cam_wifi_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
+
+    ESP_LOGD(TAG, "[PRE esp32cam_camera_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(esp32cam_camera_init());
-//    ESP_ERROR_CHECK(esp32cam_mqtt_init());
+    ESP_LOGD(TAG, "[POST esp32cam_camera_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
+
+    ESP_LOGD(TAG, "[PRE esp32cam_mqtt_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
+    ESP_ERROR_CHECK(esp32cam_mqtt_init());
+    ESP_LOGD(TAG, "[POST esp32cam_mqtt_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_LOGI(TAG, "System init OK");
 
-//    s_mqtt_event_group = xEventGroupCreate();
-//    xTaskCreate(mqtt_connection_task, "mqtt_connect_task", 4096, NULL, 5, NULL);
-//    EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
-//                                           MQTT_CONNECTED | MQTT_DISCONNECTED,
-//                                           pdFALSE,
-//                                           pdFALSE,
-//                                           portMAX_DELAY);
-//    esp_err_t result = bits & MQTT_CONNECTED ? ESP_OK : ESP_FAIL;
-//    ESP_ERROR_CHECK(result);
-//    ESP_LOGI(TAG, "MQTT connected OK");
+    s_mqtt_event_group = xEventGroupCreate();
+    xTaskCreate(mqtt_connection_task, "mqtt_connect_task", 4096, NULL, 5, NULL);
+    EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
+                                           MQTT_CONNECTED | MQTT_DISCONNECTED,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    esp_err_t result = bits & MQTT_CONNECTED ? ESP_OK : ESP_FAIL;
+    ESP_ERROR_CHECK(result);
+    ESP_LOGI(TAG, "MQTT connected OK");
 
     esp_rtsp_server_handle_t rtsp_server_handle;
     ESP_ERROR_CHECK(esp_rtsp_server_start(&rtsp_server_handle));
     ESP_LOGI(TAG, "RTSP server started on port 554");
 
     for(;;) {
-//        err = esp32cam_camera_capture(&image_buffer, &image_size);
-//        if (err != ESP_OK) {
-//            ESP_LOGE(TAG, "Failed to capture image: %d", err);
-//            goto done;
-//        }
-//
-//        err = esp32cm_mqtt_publish(image_buffer, image_size);
-//        if (err != ESP_OK) {
-//            ESP_LOGE(TAG, "Failed to publish image to mqtt: %d", err);
-//            goto done;
-//        }
-//
-//        ESP_LOGI(TAG, "Published image (%d bytes)", image_size);
-        char buffer[512];
-        vTaskGetRunTimeStats(buffer);
-        ESP_LOGD(TAG, "%s", buffer);
+        err = esp32cam_camera_capture(&esp32cam_mqtt_publish);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to capture image: %d", err);
+        }
 
-        ESP_LOGD(TAG, "Heap free: %d", esp_get_free_heap_size());
-
+        ESP_LOGD(TAG, "Free heap: %d, internal %d", esp_get_free_heap_size(), esp_get_free_internal_heap_size());
         vTaskDelay(pdMS_TO_TICKS(5 * 1000));
     }
 

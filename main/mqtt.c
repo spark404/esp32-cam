@@ -178,7 +178,7 @@ esp_err_t esp32cam_mqtt_disconnect() {
     return ESP_OK;
 }
 
-esp_err_t esp32cm_mqtt_publish(void *buffer, size_t buffer_length) {
+esp_err_t esp32cam_mqtt_publish(uint8_t *buffer, size_t buffer_length) {
     char topic[1024];
     size_t topic_length = snprintf(topic, 1024, "dt/espcam32/%s/image", "esp_cam_01");
     MQTTPublishInfo_t publish_info = {

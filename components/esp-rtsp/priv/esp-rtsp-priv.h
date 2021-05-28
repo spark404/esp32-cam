@@ -5,7 +5,7 @@
 #ifndef ESPCAM_ESP_RTSP_PRIV_H
 #define ESPCAM_ESP_RTSP_PRIV_H
 
-#define SERVER_STACKSIZE 8192
+#define SERVER_STACKSIZE (16 * 1024)
 #define SERVER_PRIORITY 2
 
 typedef struct {

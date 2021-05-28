@@ -70,7 +70,7 @@ esp_err_t esp32cam_camera_init() {
     return ESP_OK;
 }
 
-esp_err_t esp32cam_camera_capture(void *buffer, size_t *len) {
+esp_err_t esp32cam_camera_capture(esp_err_t(*handler)(uint8_t *buffer, size_t len)) {
     //acquire a frame
     camera_fb_t * fb = esp_camera_fb_get();
     if (!fb) {
@@ -78,15 +78,10 @@ esp_err_t esp32cam_camera_capture(void *buffer, size_t *len) {
         return ESP_FAIL;
     }
 
-    if (fb->len > 65536) {
-        ESP_LOGE(TAG, "Not enough space in buffer for frame, %d bytes required", fb->len);
-        esp_camera_fb_return(fb);
-        return ESP_FAIL;
-    }
-    memcpy(buffer, fb->buf, fb->len);
-    *len = fb->len;
+    esp_err_t err = handler(fb->buf, fb->len);
 
     //return the frame buffer back to the driver for reuse
     esp_camera_fb_return(fb);
-    return ESP_OK;
+
+    return err;
 }

@@ -4,11 +4,11 @@
 
 #include <esp_log.h>
 #include <lwip/sockets.h>
-#include <esp-rtsp.h>
 
 #include "rtp-udp.h"
 
 #define TAG "rtp-udp"
+
 #define MAX_PAYLOAD_SIZE 1472 // This is based on MTU 1500 minus udp headers
 
 #define RTP_PAYLOAD_JPEG 26
@@ -84,7 +84,7 @@ static int serialize_jpeg_header(esp_rtp_jpeg_header_t header, uint8_t *buffer, 
 
     buffer[0] = header.type;
 
-    buffer[4] = header.type;
+    buffer[4] = header.type_specific;
     buffer[5] = header.q;
     buffer[6] = header.width / 8;
     buffer[7] = header.height / 8;
@@ -96,7 +96,7 @@ static int serialize_quant_tables(esp_rtp_quant_t quant, uint8_t *buffer, size_t
     assert(buffer != NULL);
 
     if (length < quant.length + 4) {
-        ESP_LOGE(TAG, "No enough spae in buffer for quant tables");
+        ESP_LOGE(TAG, "No enough space in buffer for quant tables");
         return -1;
     }
 
@@ -164,15 +164,15 @@ esp_err_t esp_rtp_teardown(esp_rtp_session_handle_t rtp_session) {
     }
     esp_rtp_session_t *session = rtp_session;
 
-    if (!session->initialized) {
-        return ESP_FAIL;
+    if (session->initialized) {
+        shutdown(session->rtp_socket, 0);
+        close (session->rtp_socket);
+
+        shutdown(session->rtcp_socket, 0);
+        close(session->rtcp_socket);
     }
 
-    shutdown(session->rtp_socket, 0);
-    close (session->rtp_socket);
-
-    shutdown(session->rtcp_socket, 0);
-    close(session->rtcp_socket);
+    free(session);
 
     return ESP_OK;
 }
@@ -225,7 +225,7 @@ esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *frame
             rtp_jpeg_header.q &= 0b0111111;
         }
 
-        int last_packet = (jpeg_data.jpeg_data_length - rtp_jpeg_header.fragment_offset) < payload_remaining;
+        int last_packet = (jpeg_data.jpeg_data_length - rtp_jpeg_header.fragment_offset + 20) < payload_remaining;
         rtp_header.marker = last_packet;
 
 //        ESP_LOGD(TAG, "Serializing RTP/AVP packet, offset=%d, quant=%d, last=%d, timestamp=%ud, sequence=%ud",
@@ -276,12 +276,25 @@ esp_err_t esp_rtp_send_jpeg(esp_rtp_session_handle_t rtp_session, uint8_t *frame
                 .sin_port = htons(session->dst_rtp_port)
         };
 
-        ssize_t sent = sendto(session->rtp_socket, payload, MAX_PAYLOAD_SIZE - payload_remaining, 0,
-                              (const struct sockaddr *) &client, sizeof(client));
-        if (sent < 0) {
-            ESP_LOGE(TAG, "Failed to sent RTP package: %d", errno);
-            return ESP_FAIL;
-        }
+        int retries = 5;  // ENOMEM might occur if the buffer in LWIP is full
+        size_t size = MAX_PAYLOAD_SIZE - payload_remaining;
+        do {
+            ssize_t sent = sendto(session->rtp_socket, payload, size, 0,
+                                  (const struct sockaddr *) &client, sizeof(client));
+
+            if (sent < 0 && errno != ENOMEM) {
+                ESP_LOGE(TAG, "Failed to sent RTP package: %d", errno);
+                return ESP_FAIL;
+            }
+            
+            if (sent == size) {
+                break;
+            }
+
+            // We might need to take some time to clear the transmit buffers
+            esp_rom_delay_us(250);
+            retries--;
+        } while (retries > 0);
     }
 
     return ESP_OK;

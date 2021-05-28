@@ -38,7 +38,7 @@ esp_err_t esp_rtsp_jpeg_decode(char *buffer, size_t length, esp_rtsp_jpeg_data_t
     }
 
     char *marker;
-    size_t remaining = length;
+    size_t remaining;
     if (find_jpeg_marker(buffer, length, JPEG_DQT, &marker) < 0) {
         ESP_LOGE(TAG, "Failed to find marker 0x%02x", JPEG_DQT);
         return ESP_FAIL;
@@ -67,7 +67,7 @@ esp_err_t esp_rtsp_jpeg_decode(char *buffer, size_t length, esp_rtsp_jpeg_data_t
         ESP_LOGE(TAG, "Failed to find marker 0x%02x", JPEG_EOI);
         return ESP_FAIL;
     }
-    rtsp_jpeg_data->jpeg_data_length = marker - rtsp_jpeg_data->jpeg_data_start + 2;
+    rtsp_jpeg_data->jpeg_data_length = marker - rtsp_jpeg_data->jpeg_data_start;
 
 //    ESP_LOGD(TAG, "JPEG: Q1 : %d, Q2 : %d, SOS: %d, LEN: %d",
 //             rtsp_jpeg_data->quant_table_0 - buffer,

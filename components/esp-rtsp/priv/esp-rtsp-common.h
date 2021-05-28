@@ -5,6 +5,8 @@
 #ifndef ESPCAM_ESP_RTSP_COMMON_H
 #define ESPCAM_ESP_RTSP_COMMON_H
 
+#include <esp_err.h>
+
 #define URL_MAX_LENGTH 1024
 
 typedef enum {
@@ -12,7 +14,8 @@ typedef enum {
     DESCRIBE,
     SETUP,
     PLAY,
-    TEARDOWN
+    TEARDOWN,
+    UNSUPPORTED
 } rtsp_request_type_t;
 
 typedef struct {
@@ -26,9 +29,16 @@ typedef struct {
 
 typedef void* rtsp_parser_handle_t;
 
-int parser_init(rtsp_parser_handle_t *handle);
+#define PARSER_OK 0
+#define PARSER_FAIL -1
+#define PARSER_NOMEM -2
+#define PARSER_INVALID_STATE -3
+#define PARSER_INVALID_ARGS -4
+
+int rtsp_parser_init(rtsp_parser_handle_t *handle);
 int parse_request(rtsp_parser_handle_t handle, const char *buffer, size_t len);
 int parser_is_complete(rtsp_parser_handle_t handle);
+int parser_get_error(rtsp_parser_handle_t handle);
 rtsp_req_t *parser_get_request(rtsp_parser_handle_t handle);
 int parser_free(rtsp_parser_handle_t handle);
 

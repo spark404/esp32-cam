@@ -1,10 +1,13 @@
-# Required for the camera component
+# ESP32-CAM units have a SPIRAM chip, required for the camera component
 CONFIG_ESP32_SPIRAM_SUPPORT=y
 
 # ESP32-CAM units have 4Mb flash
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
 
-#
-#CONFIG_ESPCAM_AWS_CERTS_EMBEDDED=y
+# Certificates and configuration stored on SD card
 CONFIG_ESPCAM_AWS_CERTS_SD=y
+
+# Using a custom partition table as our binary image is large
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
