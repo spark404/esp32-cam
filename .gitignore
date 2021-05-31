@@ -7,3 +7,9 @@ sdkconfig.old
 #
 main/certs/*
 !main/certs/README.md
+#
+# Sonar
+.scannerwork
+build-wrapper-*
+sonar-scanner-*
+build_wrapper_output_directory
