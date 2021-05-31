@@ -26,3 +26,5 @@ jobs:
         uses: docker://espressif/idf:release-v4.3
         with:
           args: ./build-with-sonar.sh
+        env:
+          SONAR_AUTHTOKEN: ${{ secrets.SONAR_AUTHTOKEN }}
