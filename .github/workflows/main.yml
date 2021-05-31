@@ -27,4 +27,5 @@ jobs:
         with:
           args: ./build-with-sonar.sh
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_AUTHTOKEN: ${{ secrets.SONAR_AUTHTOKEN }}
