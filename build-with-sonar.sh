@@ -31,9 +31,9 @@ SCANNER="./sonar-scanner-4.6.2.2472-${BUILD_OS}/bin/sonar-scanner"
 rm -f sdkconfig
 $WRAPPER idf.py reconfigure clean build
 
-if [ ! -e build_wrapper_output_directory\build-wrapper-dump.json ] ; then
+if [ ! -e build_wrapper_output_directory/build-wrapper-dump.json ] ; then
 	echo Build failed or didn\'t generate wrapper info
 	exit 1
 fi
 
-$SCANNER -Dproject.settings=sonar-project.properties -Dsonar.login=$(<~/sonar.authtoken)
+$SCANNER -Dproject.settings=sonar-project.properties -Dsonar.login=${SONAR_AUTHTOKEN}
