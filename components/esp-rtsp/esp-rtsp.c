@@ -30,7 +30,7 @@ esp_err_t esp_rtsp_server_start(esp_rtsp_server_handle_t *handle) {
 
     BaseType_t result = xTaskCreate(rtsp_server_task, "rtsp_tcp_server", SERVER_STACKSIZE, NULL, SERVER_PRIORITY, &server->server_taskhandle);
     if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create rtsp server task");
+        ESP_LOGE(TAG, "Failed to create rtsp server task: %d", result);
         free(server);
         return ESP_FAIL;
     }

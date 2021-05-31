@@ -104,6 +104,10 @@ esp_err_t esp32cam_wifi_init(espcam_wifi_config_t *espcam_wifi_config) {
     result = bits & WIFI_CONNECTED_BIT ? ESP_OK : ESP_FAIL;
     xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_DISCONNECTED_BIT);
 
+    esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler);
+    esp_event_handler_unregister(IP_EVENT,IP_EVENT_STA_GOT_IP, &event_handler);
+    vEventGroupDelete(s_wifi_event_group);
+
     ESP_LOGI(TAG, "wifi_init completed");
     return result;
 }

@@ -235,7 +235,7 @@ int parse_request(rtsp_parser_handle_t handle, const char *buffer, const size_t 
                         char *token = strtok_r(value, ";", &saveptr);
                         if (token == NULL || strcmp(token, "RTP/AVP") != 0) {
                             ESP_LOGW(TAG, "Unsupported stream transport: %s", token);
-                            state->error = 400;
+                            state->error = 461;
                             return i;
                         }
 
@@ -289,7 +289,6 @@ int parser_free(rtsp_parser_handle_t handle) {
     state->request = NULL; // Freeing request is left to the caller
     free(state);
 
-    handle = NULL;
     return 0;
 }
 
@@ -306,9 +305,5 @@ int parser_is_complete(rtsp_parser_handle_t handle) {
 rtsp_req_t *parser_get_request(rtsp_parser_handle_t handle) {
     rtsp_parser_state_t *state = (rtsp_parser_state_t *)handle;
 
-    if (state->parse_complete) {
-        return state->request;
-    }
-
-    return NULL;
+    return state->request;
 }

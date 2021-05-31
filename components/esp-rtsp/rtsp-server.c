@@ -212,9 +212,17 @@ static void handle_teardown(esp_rtsp_server_connection_t *connection, rtsp_req_t
 }
 
 static int rtsp_server_connection_close(esp_rtsp_server_connection_t *connection) {
-    ESP_LOGD(TAG, "Closing connection with %s", connection->client_addr_string);
+    ESP_LOGI(TAG, "Closing connection with %s", connection->client_addr_string);
     if (!connection->connection_active) {
         return 0;
+    }
+
+    if (connection->parser) {
+        rtsp_req_t *request = parser_get_request(connection->parser);
+        parser_free(connection->parser);
+        if (request) {
+            free(request);
+        }
     }
 
     if (connection->rtp_player_task) {
@@ -275,8 +283,6 @@ static int esp_rtsp_handle_request(esp_rtsp_server_connection_t *connection, rts
         return -1;
     }
 
-    int sock = connection->socket;
-
     switch (request->request_type) {
         case OPTIONS:
             handle_options(connection, request);
@@ -294,8 +300,7 @@ static int esp_rtsp_handle_request(esp_rtsp_server_connection_t *connection, rts
             handle_teardown(connection, request);
             break;
         default:
-            ESP_LOGI(TAG, "RTSP >: %s", "RTSP/1.0 200 OK\r\n\r\n");
-            send(sock, "RTSP/1.0 200 OK\r\n\r\n", 19, 0);
+            esp_rtsp_handle_error(connection, 405);
     }
 
     return 0;
@@ -307,6 +312,27 @@ static int esp_rtsp_handle_error(esp_rtsp_server_connection_t *connection, int e
     }
 
     int sock = connection->socket;
+
+    if (error == 461) {
+        ESP_LOGI(TAG, "RTSP >: %s", "RTSP/1.0 461 Unsupported Transport\r\n\r\n");
+        send(sock, "RTSP/1.0 461 Unsupported Transport\r\n\r\n", 38, 0);
+        return 0;
+    }
+
+    if (error == 405) {
+        static char buffer[2048];
+        size_t msgsize = snprintf(buffer, 2048,
+                                  "RTSP/1.0 405 Method Not Allowed\r\n"
+                                  "Server: ESP32 Cam Server\r\n"
+                                  "Allow: OPTIONS, DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE\r\n"
+                                  "\r\n");
+        size_t sent = send(connection->socket, buffer, msgsize, 0);
+        ESP_LOGI(TAG, "RTSP >: %s", buffer);
+        if (sent != msgsize) {
+            ESP_LOGW(TAG, "Mismatch between msgsize and sent bytes: %d vs %d", msgsize, sent);
+        }
+        return 0;
+    }
 
     ESP_LOGI(TAG, "RTSP >: %s", "RTSP/1.0 400 Bad Request\r\n\r\n");
     send(sock, "RTSP/1.0 400 Bad Request\r\n\r\n", 28, 0);
@@ -354,6 +380,8 @@ static int esp_rtsp_handle_read(esp_rtsp_server_connection_t *connection) {
             ESP_LOGW(TAG, "Failed to handle request %d", request->request_type);
             return -1;
         }
+
+        free(request);
     }
 
     return 0;
