@@ -1,19 +1,19 @@
-name: CI
+name: PR-CI
 
 on:
-  push:
+  pull_request:
     branches: [ main ]
 
   workflow_dispatch:
-  
+
 defaults:
   run:
     shell: bash
-    
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:      
+    steps:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
@@ -23,16 +23,13 @@ jobs:
       - name: ESP IDF Build
         uses: docker://espressif/idf:release-v4.3
         with:
-          args: ./build-with-sonar.sh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_AUTHTOKEN: ${{ secrets.SONAR_AUTHTOKEN }}
+          args: idf.py reconfigure clean build
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v2
         with:
-            name: firmware
-            path: |
-              build/bootloader/bootloader.bin
-              build/partition_table/partition_table.bin
-              build/espcam.bin
+          name: firmware
+          path: |
+            build/bootloader/bootloader.bin
+            build/partition_table/partition_table.bin
+            build/espcam.bin
