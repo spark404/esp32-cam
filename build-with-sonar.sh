@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# whitespace for testing
 SONAR_URL=https://sonarcloud.io
 
 if echo $OSTYPE | grep -i darwin ; then
