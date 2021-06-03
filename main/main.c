@@ -25,6 +25,7 @@
 
 #include "sdkconfig.h"
 
+#include "esp-rtsp.h"
 #include "common.h"
 
 #define TAG "main"
@@ -125,11 +126,25 @@ esp_err_t load_app_config() {
 char image_buffer[65536];
 size_t image_size;
 
+#define MQTT_CONNECTED BIT0
+#define MQTT_DISCONNECTED BIT1
+EventGroupHandle_t s_mqtt_event_group;
+
+void mqtt_connection_task(void *pvParameters) {
+    esp_err_t err = esp32cam_mqtt_connect(&app_config.aws_iot_config, &app_config.tls_config);
+    if (err != ESP_OK) {
+        xEventGroupSetBits(s_mqtt_event_group, MQTT_DISCONNECTED);
+    }
+    xEventGroupSetBits(s_mqtt_event_group, MQTT_CONNECTED);
+    
+    vTaskDelete(NULL);
+}
+
 _Noreturn
 void app_main()
 {
     ESP_LOGI(TAG, "[APP] Startup..");
-    ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "[APP] Free heap memory: %d bytes (%d internal)", esp_get_free_heap_size(), esp_get_free_internal_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
 
     const esp_partition_t *running_partition = esp_ota_get_running_partition();
@@ -152,37 +167,49 @@ void app_main()
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     // Load configuration from the SD card
+    ESP_LOGD(TAG, "[PRE load_app_config] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(load_app_config());
+    ESP_LOGD(TAG, "[POST load_app_config] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
 
     // Call our own init functions
+    ESP_LOGD(TAG, "[PRE esp32cam_wifi_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(esp32cam_wifi_init(&app_config.wifi_config));
+    ESP_LOGD(TAG, "[POST esp32cam_wifi_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
+
+    ESP_LOGD(TAG, "[PRE esp32cam_camera_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(esp32cam_camera_init());
+    ESP_LOGD(TAG, "[POST esp32cam_camera_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
+
+    ESP_LOGD(TAG, "[PRE esp32cam_mqtt_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_ERROR_CHECK(esp32cam_mqtt_init());
+    ESP_LOGD(TAG, "[POST esp32cam_mqtt_init] Free internal heap  %d bytes", esp_get_free_internal_heap_size());
     ESP_LOGI(TAG, "System init OK");
 
-
-    ESP_ERROR_CHECK(esp32cam_mqtt_connect(&app_config.aws_iot_config, &app_config.tls_config));
+    s_mqtt_event_group = xEventGroupCreate();
+    xTaskCreate(mqtt_connection_task, "mqtt_connect_task", 4096, NULL, 5, NULL);
+    EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group,
+                                           MQTT_CONNECTED | MQTT_DISCONNECTED,
+                                           pdFALSE,
+                                           pdFALSE,
+                                           portMAX_DELAY);
+    esp_err_t result = bits & MQTT_CONNECTED ? ESP_OK : ESP_FAIL;
+    ESP_ERROR_CHECK(result);
     ESP_LOGI(TAG, "MQTT connected OK");
 
+    esp_rtsp_server_handle_t rtsp_server_handle;
+    ESP_ERROR_CHECK(esp_rtsp_server_start(&rtsp_server_handle));
+    ESP_LOGI(TAG, "RTSP server started on port 554");
+
     for(;;) {
-        err = esp32cam_camera_capture(&image_buffer, &image_size);
+        err = esp32cam_camera_capture(&esp32cam_mqtt_publish);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to capture image: %d", err);
-            goto done;
         }
 
-        err = esp32cm_mqtt_publish(image_buffer, image_size);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to publish image to mqtt: %d", err);
-            goto done;
-        }
-
-        ESP_LOGI(TAG, "Published image (%d bytes)", image_size);
-
-        done:
+        ESP_LOGD(TAG, "Free heap: %d, internal %d", esp_get_free_heap_size(), esp_get_free_internal_heap_size());
         vTaskDelay(pdMS_TO_TICKS(5 * 1000));
     }
 
+    ESP_ERROR_CHECK(esp_rtsp_server_stop(rtsp_server_handle));
     ESP_ERROR_CHECK(esp32cam_mqtt_disconnect());
-
 }

@@ -2,7 +2,7 @@
 // Created by Hugo Trippaers on 20/04/2021.
 //
 
-#ifndef ESPCAM_COMMON_H
+#ifndef ESPCAM_ESP_RTSP_COMMON_H
 #define ESPCAM_COMMON_H
 
 // keys in settings.ini
@@ -45,16 +45,16 @@ typedef struct {
 esp_err_t esp32cam_wifi_init(espcam_wifi_config_t *wifi_config);
 
 esp_err_t esp32cam_camera_init();
-esp_err_t esp32cam_camera_capture(void *buffer, size_t *len);
+esp_err_t esp32cam_camera_capture(esp_err_t(*handler)(uint8_t *fb, size_t fb_len));
 
 esp_err_t esp32cam_mqtt_init();
 esp_err_t esp32cam_mqtt_connect(espcam_aws_iot_config_t *aws_iot_config, espcam_tls_config_t *tls_config);
 esp_err_t esp32cam_mqtt_disconnect();
-esp_err_t esp32cm_mqtt_publish(void *buffer, size_t buffer_length);
+esp_err_t esp32cam_mqtt_publish(uint8_t *buffer, size_t buffer_length);
 
 esp_err_t esp32cam_sdcard_mount();
 esp_err_t esp32cam_sdcard_unmount();
 esp_err_t esp32cam_sdcard_readfile(const char *filename, void **content, size_t *size);
 
 
-#endif //ESPCAM_COMMON_H
+#endif //ESPCAM_ESP_RTSP_COMMON_H

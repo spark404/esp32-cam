@@ -80,7 +80,7 @@ static esp_err_t transport_connect(TransportInterface_t *transportInterface, esp
 
         if (result != 1) {
             retryStatus = BackoffAlgorithm_GetNextBackoff(&retryParams, rand(), &nextRetryBackoff);
-
+            ESP_LOGW(TAG, "Retrying connection to broker in %d ms", nextRetryBackoff);
             vTaskDelay(pdMS_TO_TICKS(nextRetryBackoff));
         }
     } while ((result != 1) && ( retryStatus != BackoffAlgorithmRetriesExhausted ));
@@ -178,7 +178,7 @@ esp_err_t esp32cam_mqtt_disconnect() {
     return ESP_OK;
 }
 
-esp_err_t esp32cm_mqtt_publish(void *buffer, size_t buffer_length) {
+esp_err_t esp32cam_mqtt_publish(uint8_t *buffer, size_t buffer_length) {
     char topic[1024];
     size_t topic_length = snprintf(topic, 1024, "dt/espcam32/%s/image", "esp_cam_01");
     MQTTPublishInfo_t publish_info = {
