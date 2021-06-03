@@ -31,5 +31,5 @@ jobs:
           name: firmware
           path: |
             build/bootloader/bootloader.bin
-            build/partition_table/partition_table.bin
+            build/partition_table/partition-table.bin
             build/espcam.bin
