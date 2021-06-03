@@ -31,8 +31,14 @@ SCANNER="./sonar-scanner-4.6.2.2472-${BUILD_OS}/bin/sonar-scanner"
 rm -f sdkconfig
 $WRAPPER idf.py reconfigure clean build
 
-if [ ! -e build_wrapper_output_directory/build-wrapper-dump.json ] ; then
-	echo Build failed or didn\'t generate wrapper info
+RET=$?
+if [ $RET -ne 0 ] ; then
+  echo Build failed!
+  exit $RET
+fi
+
+if [ ! -e build/espcam.bin ] ; then
+	echo Build failed or didn\'t generate binary
 	exit 1
 fi
 
