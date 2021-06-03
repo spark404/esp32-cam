@@ -180,7 +180,7 @@ esp_err_t esp32cam_mqtt_disconnect() {
 
 esp_err_t esp32cam_mqtt_publish(uint8_t *buffer, size_t buffer_length) {
     char topic[1024];
-    size_t topic_length = snprintf(topic, 1024, "dt/espcam32/%s/image", "esp_cam_01");
+    size_t topic_length = snprintf(topic, 1024, "cam/%s", "hugocam");
     MQTTPublishInfo_t publish_info = {
             .pTopicName = topic,
             .topicNameLength = topic_length,
