@@ -22,6 +22,8 @@
 static MQTTContext_t mqttContext;
 static TransportInterface_t mqttTransportInterface;
 
+char device_name[64];
+
 void mqtt_callback(MQTTContext_t *pMqttContext, MQTTPacketInfo_t *pMqttPacketInfo, MQTTDeserializedInfo_t *pMqttDeserializedInfo) {
     ESP_LOGD(TAG, "mqtt_callback");
 }
